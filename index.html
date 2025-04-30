@@ -1,0 +1,327 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Climbing Video Gallery (API)</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+        /* Custom styles if needed */
+        body {
+            font-family: 'Inter', sans-serif; /* Using Inter font */
+        }
+        /* Style for active filter button */
+        .filter-button.active {
+            background-color: #3b82f6; /* Tailwind blue-500 */
+            color: white;
+            font-weight: bold;
+        }
+        /* Hide elements smoothly */
+        .video-item.hidden {
+           display: none;
+        }
+        /* Basic loading indicator */
+        #loading-indicator {
+            position: fixed;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            font-size: 1.5rem;
+            font-weight: bold;
+            color: #3b82f6; /* blue-500 */
+            z-index: 100;
+            background-color: rgba(255, 255, 255, 0.8);
+            padding: 1rem 2rem;
+            border-radius: 0.5rem;
+            box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+        }
+        #loading-indicator.hidden {
+            display: none;
+        }
+    </style>
+     <link rel="preconnect" href="https://fonts.googleapis.com">
+     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;700&display=swap" rel="stylesheet">
+</head>
+<body class="bg-gray-100 p-4 md:p-8">
+
+    <div class="container mx-auto max-w-6xl">
+        <h1 class="text-3xl font-bold text-center text-gray-800 mb-8">My Climbing Videos</h1>
+
+        <div id="filter-container" class="mb-8 text-center space-y-2 md:space-y-0 md:space-x-2">
+            <h2 class="text-xl font-semibold mb-2 text-gray-700">Filter by Tag:</h2>
+            <span id="filter-loading" class="text-gray-500">Loading filters...</span>
+        </div>
+
+        <div id="video-grid" class="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-6">
+            </div>
+
+        <div id="loading-indicator" class="hidden">Loading Videos...</div>
+
+        <div id="no-results-message" class="text-center text-gray-500 mt-8 hidden">
+            No videos match the selected filter.
+        </div>
+
+        <div id="error-message" class="text-center text-red-600 font-semibold mt-8 hidden">
+            </div>
+    </div>
+
+    <script>
+        // --- Configuration ---
+        // Change this URL to your deployed Flask API URL if needed
+        const API_BASE_URL = 'https://climbing-journal-adhycrchdxffb6br.eastus-01.azurewebsites.net'; // Default for local Flask dev server
+
+        // --- DOM Elements ---
+        const filterContainer = document.getElementById('filter-container');
+        const filterLoading = document.getElementById('filter-loading');
+        const videoGrid = document.getElementById('video-grid');
+        const noResultsMessage = document.getElementById('no-results-message');
+        const loadingIndicator = document.getElementById('loading-indicator');
+        const errorMessage = document.getElementById('error-message');
+
+        // --- State ---
+        let activeFilter = 'all'; // Keep track of the currently active filter
+        let allVideosData = []; // Store fetched video data globally
+
+        // --- Functions ---
+
+        /**
+         * Fetches data from the API.
+         * @param {string} endpoint - The API endpoint (e.g., '/api/videos').
+         * @returns {Promise<any>} - A promise that resolves with the JSON data or rejects on error.
+         */
+        async function fetchData(endpoint) {
+            try {
+                const response = await fetch(`${API_BASE_URL}${endpoint}`);
+                if (!response.ok) {
+                    throw new Error(`HTTP error! Status: ${response.status}`);
+                }
+                return await response.json();
+            } catch (error) {
+                console.error(`Error fetching ${endpoint}:`, error);
+                showError(`Failed to load data from ${endpoint}. Please check if the backend server is running.`);
+                throw error; // Re-throw the error to be caught by the caller
+            }
+        }
+
+        /**
+         * Displays an error message to the user.
+         * @param {string} message - The error message to display.
+         */
+        function showError(message) {
+            errorMessage.textContent = message;
+            errorMessage.classList.remove('hidden');
+            // Hide loading indicators if an error occurs
+            loadingIndicator.classList.add('hidden');
+            filterLoading.classList.add('hidden');
+        }
+
+        /**
+         * Hides the error message area.
+         */
+        function clearError() {
+            errorMessage.textContent = '';
+            errorMessage.classList.add('hidden');
+        }
+
+         /**
+         * Shows or hides the main loading indicator.
+         * @param {boolean} show - True to show, false to hide.
+         */
+        function showLoading(show) {
+            if (show) {
+                loadingIndicator.classList.remove('hidden');
+            } else {
+                loadingIndicator.classList.add('hidden');
+            }
+        }
+
+
+        /**
+         * Generates and displays filter buttons based on tags from the API.
+         */
+        async function displayFilterButtons() {
+            try {
+                filterLoading.classList.remove('hidden'); // Show loading text
+                const tags = await fetchData('/api/tags');
+                filterLoading.classList.add('hidden'); // Hide loading text
+
+                // Clear previous buttons except the heading
+                 const heading = filterContainer.querySelector('h2');
+                 filterContainer.innerHTML = ''; // Clear container
+                 if (heading) filterContainer.appendChild(heading); // Re-add heading
+
+
+                // Create "Show All" button
+                const allButton = createFilterButton('all', 'Show All');
+                allButton.classList.add('active'); // Start with "Show All" active
+                filterContainer.appendChild(allButton);
+
+                // Create buttons for each tag from API
+                tags.forEach(tag => {
+                    const button = createFilterButton(tag, tag);
+                    filterContainer.appendChild(button);
+                });
+            } catch (error) {
+                // Error already handled by showError in fetchData
+                filterLoading.textContent = 'Error loading filters.'; // Update loading text
+            }
+        }
+
+        /**
+         * Creates a single filter button element.
+         * @param {string} filterValue - The value associated with the filter (e.g., 'all', 'bouldering').
+         * @param {string} buttonText - The text displayed on the button.
+         * @returns {HTMLButtonElement} The created button element.
+         */
+        function createFilterButton(filterValue, buttonText) {
+            // (Same as previous version)
+            const button = document.createElement('button');
+            button.classList.add(
+                'filter-button',
+                'px-4', 'py-2', 'm-1', 'border', 'border-gray-300',
+                'rounded-full', 'text-sm', 'font-medium', 'text-gray-700',
+                'bg-white', 'hover:bg-gray-200', 'transition', 'duration-150', 'ease-in-out',
+                'capitalize' // Capitalize the first letter of the tag
+            );
+            button.dataset.filter = filterValue; // Store filter value in data attribute
+            button.textContent = buttonText;
+            button.addEventListener('click', handleFilterClick);
+            return button;
+        }
+
+        /**
+         * Handles clicks on filter buttons.
+         * @param {Event} event - The click event object.
+         */
+        function handleFilterClick(event) {
+             // (Same as previous version)
+            const clickedButton = event.target;
+            const newFilter = clickedButton.dataset.filter;
+            activeFilter = newFilter;
+            document.querySelectorAll('.filter-button').forEach(btn => {
+                btn.classList.remove('active');
+            });
+            clickedButton.classList.add('active');
+            filterVideos(); // Re-filter based on the globally stored video data
+        }
+
+        /**
+         * Fetches video data from the API and displays them.
+         */
+        async function displayVideos() {
+            showLoading(true);
+            clearError(); // Clear any previous errors
+            videoGrid.innerHTML = ''; // Clear existing videos
+
+            try {
+                allVideosData = await fetchData('/api/videos'); // Fetch and store globally
+
+                if (allVideosData.length === 0) {
+                    noResultsMessage.textContent = "No videos found in the library.";
+                    noResultsMessage.classList.remove('hidden');
+                } else {
+                     allVideosData.forEach(video => {
+                        const videoElement = createVideoItem(video);
+                        videoGrid.appendChild(videoElement);
+                    });
+                    // Apply initial filter (show all)
+                    filterVideos();
+                }
+            } catch (error) {
+                // Error handled by showError in fetchData
+                videoGrid.innerHTML = ''; // Ensure grid is empty on error
+            } finally {
+                 showLoading(false);
+            }
+        }
+
+        /**
+         * Creates a single video item element (thumbnail, title).
+         * @param {object} video - The video data object from the API.
+         * @returns {HTMLDivElement} The created video item element.
+         */
+        function createVideoItem(video) {
+             // (Mostly same as previous version, ensure tags exist)
+            const div = document.createElement('div');
+            div.classList.add(
+                'video-item', 'bg-white', 'rounded-lg', 'shadow-md',
+                'overflow-hidden', 'transition-all', 'duration-300', 'ease-in-out'
+            );
+            const tags = video.tags || []; // Default to empty array if tags are missing
+            div.dataset.tags = JSON.stringify(tags);
+
+            div.innerHTML = `
+                <a href="${video.videoUrl || '#'}" target="_blank" title="Watch '${video.title || 'Untitled'}'">
+                    <img src="${video.thumbnail || 'https://placehold.co/600x400/cccccc/1f2937?text=No+Thumb'}" alt="${video.title || 'Untitled'}" class="w-full h-48 object-cover" onerror="this.src='https://placehold.co/600x400/fecaca/1f2937?text=Image+Error'; this.alt='Error loading image'">
+                </a>
+                <div class="p-4">
+                    <h3 class="font-semibold text-gray-800 mb-1 truncate" title="${video.title || 'Untitled'}">${video.title || 'Untitled'}</h3>
+                    <div class="text-xs text-gray-500 space-x-1">
+                        ${tags.map(tag => `<span class="inline-block bg-gray-200 rounded-full px-2 py-0.5 capitalize">${tag}</span>`).join(' ')}
+                    </div>
+                </div>
+            `;
+            return div;
+        }
+
+        /**
+         * Filters the videos displayed in the grid based on the activeFilter, using the globally stored data.
+         */
+        function filterVideos() {
+            // (Same as previous version, but operates on elements already in the DOM)
+            let hasVisibleVideos = false;
+            const videoItems = videoGrid.querySelectorAll('.video-item');
+
+             if (videoItems.length === 0 && allVideosData.length > 0) {
+                // If grid is empty but we have data, likely means initial load hasn't rendered yet
+                // This might happen if filterVideos is called before items are fully added.
+                // Let displayVideos handle the initial rendering and filtering.
+                return;
+            }
+
+            if (videoItems.length === 0 && allVideosData.length === 0) {
+                 noResultsMessage.textContent = "No videos found in the library.";
+                 noResultsMessage.classList.remove('hidden');
+                 return; // No items to filter
+            }
+
+
+            videoItems.forEach(item => {
+                const itemTags = JSON.parse(item.dataset.tags || '[]');
+                const shouldShow = activeFilter === 'all' || itemTags.includes(activeFilter);
+
+                if (shouldShow) {
+                    item.classList.remove('hidden');
+                    hasVisibleVideos = true;
+                } else {
+                    item.classList.add('hidden');
+                }
+            });
+
+            // Show or hide the "no results" message
+            if (hasVisibleVideos) {
+                noResultsMessage.classList.add('hidden');
+            } else if (allVideosData.length > 0) { // Only show "no results" if there was data to filter
+                 noResultsMessage.textContent = "No videos match the selected filter.";
+                 noResultsMessage.classList.remove('hidden');
+            } else {
+                 // Handles case where library was empty initially
+                 noResultsMessage.textContent = "No videos found in the library.";
+                 noResultsMessage.classList.remove('hidden');
+            }
+        }
+
+
+        // --- Initialization ---
+        // Run functions when the page loads
+        document.addEventListener('DOMContentLoaded', () => {
+            clearError(); // Ensure error message is hidden initially
+            displayFilterButtons(); // Fetch tags and create buttons
+            displayVideos();      // Fetch videos and display them
+        });
+
+    </script>
+
+</body>
+</html>
