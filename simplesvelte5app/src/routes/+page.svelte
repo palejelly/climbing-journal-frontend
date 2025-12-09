@@ -1,7 +1,9 @@
 <script>
+	import { goto } from '$app/navigation';
   import { onMount } from 'svelte';
+	import { preventDefault } from 'svelte/legacy';
+  import { enhance } from '$app/forms';
 
-  const API_BASE_URL = 'https://climbing-journal-adhycrchdxffb6br.eastus-01.azurewebsites.net';
 
   let activeFilter = 'all';
   let allVideosData = [];
@@ -20,30 +22,6 @@
   let videoTitle = '';
   let videoTags = '';
   let videoFile;
-
-  async function fetchData(endpoint, options = {}) {
-    try {
-      const response = await fetch(`${API_BASE_URL}${endpoint}`, options);
-      if (!response.ok) {
-        let errorData;
-        try {
-          errorData = await response.json();
-        } catch (e) {}
-        const errorMsg = errorData?.error || `HTTP error! Status: ${response.status}`;
-        throw new Error(errorMsg);
-      }
-      const contentType = response.headers.get("content-type");
-      if (contentType && contentType.includes("application/json")) {
-        return await response.json();
-      } else {
-        return await response.text();
-      }
-    } catch (error) {
-      console.error(`Error fetching ${endpoint}:`, error);
-      errorMessage = `API Error: ${error.message}. Please check backend logs.`;
-      throw error;
-    }
-  }
 
   function clearError() {
     errorMessage = '';
@@ -113,25 +91,6 @@
     }
   }
 
-  async function handleLogin(event) {
-    event.preventDefault();
-    clearError();
-    const form = event.target;
-    const username = form.username.value;
-    const password = form.password.value;
-    const loginData = { username, password };
-
-    try {
-      const result = await fetchData('/auth/login', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(loginData)
-      });
-      loginMessage = result.message;
-    } catch (e) {
-      errorMessage = e.message;
-    }
-  }
 
   onMount(() => {
     loadVideos();
@@ -144,7 +103,31 @@
 
   <div class="text-center mb-8">
     {#if !loginMessage}
-      <form on:submit|preventDefault={handleLogin} class="space-x-2">
+
+    <!-- 
+      1. on:submit is Client-side handling, |preventDefault is event.preventDefault(), this prevents a full page
+     reload which is default behavior when you click submit button. So, you can think it as |preventDefault is added to on:submit={handleLogin}
+      2.action=? method="POST" will send post request to the same url 
+      3. more on use:enhance :If a function is returned, that function is called with the response from the server. 
+ If nothing is returned, the fallback will be used. 
+      4. <form on:submit|preventDefault={handleLogin} class="space-x-2"> 
+      5. ?/login sends POST request to  -->
+
+       <form action="?/test_env_var" method="POST" use:enhance={()=>{
+        return async ({result})=>{
+          //do something with result or after submission
+          if(result.type === 'success' && result.status === 200){
+            goto('/');
+          }else if(result.type === 'redirect'){
+            // form response might return a redirect
+            goto(result.location, {invalidateAll:true});
+          }else{
+            //show an error
+            const errorText = (result.type ==='error'? result.error.message : result.data?.message)
+            // TODO show error text
+          }
+       };
+      }}>
         <input placeholder="Username" type="text" name="username" required class="border px-2 py-1" />
         <input placeholder="Password" type="password" name="password" required class="border px-2 py-1" />
         <input type="submit" value="Login" class="bg-blue-500 text-white px-3 py-1 rounded" />
