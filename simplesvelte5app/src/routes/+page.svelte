@@ -3,7 +3,7 @@
   import { onMount } from 'svelte';
 	import { preventDefault } from 'svelte/legacy';
   import { enhance } from '$app/forms';
-
+  import fetchData from '$lib/db_blobstorage';
 
   let activeFilter = 'all';
   let allVideosData = [];
@@ -117,6 +117,7 @@
         return async ({result})=>{
           //do something with result or after submission
           if(result.type === 'success' && result.status === 200){
+            console.log(result);
             goto('/');
           }else if(result.type === 'redirect'){
             // form response might return a redirect
