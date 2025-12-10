@@ -1,5 +1,6 @@
 import adapter from '@sveltejs/adapter-static';
-
+// using svelte-adapter-azure-swa
+// https://github.com/geoffrich/svelte-adapter-azure-swa/tree/main/demo
 /** @type {import('@sveltejs/kit').Config} */
 const config = {
 	kit: {
