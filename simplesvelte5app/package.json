@@ -9,7 +9,8 @@
 		"preview": "vite preview",
 		"prepare": "svelte-kit sync || echo ''",
 		"format": "prettier --write .",
-		"lint": "prettier --check ."
+		"lint": "prettier --check .",
+		"start": "node build/index.js"
 	},
 	"devDependencies": {
 		"@azure/static-web-apps-cli": "^2.0.7",
@@ -22,7 +23,6 @@
 		"prettier": "^3.6.2",
 		"prettier-plugin-svelte": "^3.4.0",
 		"svelte": "^5.41.0",
-		"svelte-adapter-azure-swa": "^0.22.1",
 		"tailwindcss": "^4.1.17",
 		"vite": "^7.1.10"
 	},
@@ -30,6 +30,7 @@
 		"node": ">=20.19.0"
 	},
 	"dependencies": {
+		"@sveltejs/adapter-node": "^5.4.0",
 		"@tailwindcss/vite": "^4.1.17",
 		"pg": "^8.16.3"
 	}
