@@ -115,9 +115,9 @@
 
        <form action="?/test_env_var" method="POST" use:enhance={()=>{
         return async ({result})=>{
+          console.log(result);
           //do something with result or after submission
           if(result.type === 'success' && result.status === 200){
-            console.log(result);
             goto('/');
           }else if(result.type === 'redirect'){
             // form response might return a redirect
@@ -129,7 +129,7 @@
           }
        };
       }}>
-        <input placeholder="Username" type="text" name="username" required class="border px-2 py-1" />
+        <input placeholder="Email" type="text" name="email" required class="border px-2 py-1" />
         <input placeholder="Password" type="password" name="password" required class="border px-2 py-1" />
         <input type="submit" value="Login" class="bg-blue-500 text-white px-3 py-1 rounded" />
       </form>

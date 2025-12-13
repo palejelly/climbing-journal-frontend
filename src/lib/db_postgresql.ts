@@ -4,7 +4,14 @@ const {Pool} = pkg;
 
 // import { SECRET_PGUSER, SECRET_PGPASSWORD, SECRET_PGHOST, SECRET_PGPORT, SECRET_PGDATABASE } from '$env/static/private';
 
+// process.env.SECRET_TEST_JL this is how you use secret.
 // TODO : need to figure out how to use env variable on AZURE.
+
+const SECRET_PGUSER = process.env.SECRET_PGUSER;
+const SECRET_PGPASSWORD = process.env.SECRET_PGPASSWORD;
+const SECRET_PGHOST = process.env.SECRET_PGHOST;
+const SECRET_PGPORT = process.env.SECRET_PGPORT;
+const SECRET_PGDATABASE = process.env.SECRET_PGDATABASE;
 
 const PostgreSQL = () => {
     

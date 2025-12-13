@@ -2,6 +2,7 @@ import type { ISession, IUser } from "$lib/interfaces";
 import {fail, type Action, type Actions} from "@sveltejs/kit";
 // import PostgreSQL from "$lib/db_postgresql";
 import fetchData from "$lib/db_blobstorage";
+import PostgreSQL from "$lib/db_postgresql";
 
 const test = process.env.SECRET_TEST_JL;
 
@@ -21,50 +22,44 @@ const test_env_var : Action = async ({request}) =>{
     }
 }
 
-const login: Action = async ({request}) => {
+const login: Action = async ({request, cookies}) => {
     // get the form data
     console.log(request);
     const data = await request.formData();
 
-    const username = data.get('username');
+    const email = data.get('email');
     const password = data.get('password');
 
 
     // Make sure we have the proper fields sent in
     if(
-        typeof username !== 'string' ||
+        typeof email !== 'string' ||
         typeof password !== 'string' ||
-        !username ||
+        !email ||
         !password
     ){
-        return fail(400, {message: 'Please proovide your username and password'});
+        return fail(400, {message: 'Please proovide your email and password'});
     }
 
+    const sql = ` select * from data.users where lower(email) = lower($1) and hash_password = crypt($2, hash_password) `
+    const resp = await PostgreSQL().query(sql, [email, password])
     // check password in database
-    const loginData = { username, password };
+    const loginData = { email, password };
 
-    // will bring this back.
-    // try {
-    //   const result = await fetchData('/auth/login', {
-    //     method: 'POST',
-    //     headers: { 'Content-Type': 'application/json' },
-    //     body: JSON.stringify(loginData)
-    //   });
+    if(resp.rowCount==0){
+        return fail(400,{message:"Your email or password is incorrect"});
+    }
 
-    //   if(result.rowCount == 0){
-    //     return fail(400, {message: result.message});
-    //   }
+    // CONVERT DB ROW TO JS OBJECT
+    const user: IUser = {...resp.rows[0]}
 
-    //   // CONVERT DB ROW TO JS OBJECT
-    //   const user: IUser = {...result.rows[0]}
+    // create session and get session GUID
+    const sessionSQL = `insert into data.session(user_id, date_expired) values ($1, now() + ('8 hour')::interval) returning guid_id `
+    const sessionResp = await PostgreSQL().query(sessionSQL, [user.user_id]);
 
-    //   // create session and get session GUID
-    //   const sessionSQL = ``
-    //   const sessionResp = await PostgreSQL().query(sessionSQL, [user.user_id]);
+    const session : ISession = {...sessionResp.rows[0]};
 
-    //   const session : ISession = {...sessionResp.rows[0]};
-
-    //   // SET COOKIE IN BROWSER WITH SESSION GUID
+    // SET COOKIE IN BROWSER WITH SESSION GUID
     //   // 7:33 on the video. 
     //   // TODO: need to import POSTGRESQL from the video
     //   // setup POSTGRESQL SERVER ON AZURE and stop using fetch DATA
@@ -73,11 +68,14 @@ const login: Action = async ({request}) => {
     //   // 2. log in server that gets request from from the front end server. [AZURE PostgreSQL]
     //   // 3. media server that saves video which also gets request from the front end server. [AZURE BLOB STORAGE]
 
+    cookies.set('svelte_app_session', session.guid_id,{
+        path:'/', //every page
+        maxAge: 60*60*8 // 8 hours.
+    })
     
-    // //   loginMessage = result.message;
-    // } catch (e) {
-    // //   errorMessage = e.message;
-    // }
+    return {
+        success: true
+    }
 
 
 }   
