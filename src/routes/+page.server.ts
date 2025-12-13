@@ -12,9 +12,13 @@ const test = process.env.SECRET_TEST_JL;
 
 const test_env_var : Action = async ({request}) =>{
     try{
+
+        const sql = ` SELECT user_id, email, hash_password FROM data.users LIMIT 1000; `
+        const resp = await PostgreSQL().query(sql)
+
         return { 
             success: true,
-            message: "this is the secret: "+ test
+            message: resp.rows
         };
     }
     catch{
