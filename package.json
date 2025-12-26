@@ -31,7 +31,7 @@
 	"dependencies": {
 		"@sveltejs/adapter-node": "^5.4.0",
 		"@tailwindcss/vite": "^4.1.17",
+		"dotenv": "^17.2.3",
 		"pg": "^8.16.3"
 	}
 }
-

@@ -4,6 +4,11 @@
 	import { preventDefault } from 'svelte/legacy';
   import { enhance } from '$app/forms';
   import fetchData from '$lib/db_blobstorage';
+	import { toast } from '$lib/store/toast.svelte';
+	import { loader } from '$lib/store/loader.svelte';
+
+  export let data;
+  console.log("this is data", data);
 
   let activeFilter = 'all';
   let allVideosData = [];
@@ -102,7 +107,14 @@
   <h1 class="text-3xl font-bold text-center text-gray-800 mb-4">My Climbing Videos</h1>
 
   <div class="text-center mb-8">
-    {#if !loginMessage}
+
+    {#if data.user}
+        <span>{data.user.user_name}'s Climbing Videos</span>
+    {:else}
+        <a href="/login">Login</a>
+    {/if}
+
+    {#if !loginMessage && !data.user}
 
     <!-- 
       1. on:submit is Client-side handling, |preventDefault is event.preventDefault(), this prevents a full page
@@ -113,11 +125,15 @@
       4. <form on:submit|preventDefault={handleLogin} class="space-x-2"> 
       5. ?/login sends POST request to  -->
 
-       <form action="?/test_env_var" method="POST" use:enhance={()=>{
+       <form action="?/login" method="POST" use:enhance={()=>{
+        loader.show = true;
+
         return async ({result})=>{
           console.log(result);
           //do something with result or after submission
           if(result.type === 'success' && result.status === 200){
+            loader.show = false;
+
             goto('/');
           }else if(result.type === 'redirect'){
             // form response might return a redirect
@@ -125,7 +141,10 @@
           }else{
             //show an error
             const errorText = (result.type ==='error'? result.error.message : result.data?.message)
-            // TODO show error text
+
+            toast.text = errorText;
+            toast.color = 'red';
+            loader.show = false;
           }
        };
       }}>

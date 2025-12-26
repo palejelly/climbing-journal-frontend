@@ -6,6 +6,7 @@ const {Pool} = pkg;
 
 // process.env.SECRET_TEST_JL this is how you use secret.
 // TODO : need to figure out how to use env variable on AZURE.
+import 'dotenv/config';
 
 const SECRET_PGUSER = process.env.SECRET_PGUSER;
 const SECRET_PGPASSWORD = process.env.SECRET_PGPASSWORD;
@@ -62,7 +63,8 @@ export class DBInstance {
                 port: Number(SECRET_PGPORT),
                 idleTimeoutMillis: 15000,
                 connectionTimeoutMillis: 5000,
-                max: 50
+                max: 50,
+                ssl: {rejectUnauthorized: false},
             })
             DBInstance.dbContext = await pool.connect()
         } catch (err) {

@@ -1,4 +1,5 @@
 interface IUser {
+    user_name: string,
     user_id: number,
     email: string,
 }
