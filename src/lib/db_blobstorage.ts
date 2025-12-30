@@ -1,5 +1,5 @@
-// const API_BASE_URL = 'https://climbing-journal-adhycrchdxffb6br.eastus-01.azurewebsites.net';
-const API_BASE_URL = 'http://127.0.0.1:3000'
+const API_BASE_URL = 'https://climbing-journal-adhycrchdxffb6br.eastus-01.azurewebsites.net';
+// const API_BASE_URL = 'http://127.0.0.1:3000'
 
 async function fetchData(endpoint, options = {}) {
 try {
