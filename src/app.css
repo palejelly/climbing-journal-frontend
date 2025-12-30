@@ -71,7 +71,7 @@ body { font-family: 'Inter', sans-serif; }
     width: 100%;
     height: 12rem; /* h-48 */
     /* Changed object-cover to object-contain */
-    object-fit: contain; /* Scales the image while preserving aspect ratio */
+    object-fit: cover; /* Scales the image while preserving aspect ratio */
     background-color: #e5e7eb; /* Optional: Add a background color for letterboxing */
 }
 
