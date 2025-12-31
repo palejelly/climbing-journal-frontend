@@ -8,7 +8,6 @@
 	import { loader } from '$lib/store/loader.svelte';
 
   export let data;
-  console.log("this is data", data);
 
   let todayDate = new Date().toISOString().split('T')[0];
 
@@ -138,7 +137,12 @@ async function handleUpload(event) {
     // Get values from radio/selects manually if not bound
     const formElement = event.target;
     formData.append('climb_type', formElement.climb_type.value);
-    formData.append('board_type', formElement.board_type.value);
+
+    if (formElement.board_type) {
+        formData.append('board_type', formElement.board_type.value);
+    } else {
+        formData.append('board_type', ''); // Or 'N/A'
+    }
     // -----------------------------
 
     uploading = true;
@@ -504,9 +508,3 @@ async function handleUpload(event) {
     </div>
   {/if}
 </div>
-
-<style>
-  body {
-    font-family: 'Inter', sans-serif;
-  }
-</style>
