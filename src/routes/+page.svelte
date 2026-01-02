@@ -1,11 +1,10 @@
 <script>
-	import { goto } from '$app/navigation';
-  import { onMount } from 'svelte';
-	import { preventDefault } from 'svelte/legacy';
+  import { goto } from '$app/navigation';
+  import { onMount, onDestroy } from 'svelte';
   import { enhance } from '$app/forms';
   import fetchData from '$lib/db_blobstorage';
-	import { toast } from '$lib/store/toast.svelte';
-	import { loader } from '$lib/store/loader.svelte';
+  import { toast } from '$lib/store/toast.svelte';
+  import { loader } from '$lib/store/loader.svelte';
 
   export let data;
 
@@ -22,61 +21,93 @@
   let showModal = false;
   let modalVideoUrl = '';
   let modalVideoTitle = '';
-  let loginMessage = '';
-  let activeView = 'feed'; // Options: 'feed' | 'profile'
+  let activeView = 'feed'; 
   let showProfileMenu = false;
-
 
   let isEditing = false;
   let editTitle = '';
   let editTags ='';
-  let selectedVideo = null; // to track which video is in the modal.
+  let selectedVideo = null; 
 
-  let searchQuery = ''; // NEW: Track search input
+  let searchQuery = ''; 
 
-  // UPDATE: Logic to filter by BOTH Tag AND Title
+  // REACTIVE FILTER: Handles both Tags AND Search Title
   $: filteredVideos = allVideosData.filter((video) => {
     const matchesTag = activeFilter === 'all' || video.tags?.includes(activeFilter);
     const matchesSearch = video.title.toLowerCase().includes(searchQuery.toLowerCase());
     return matchesTag && matchesSearch;
   });
 
-    
   // Upload form fields
   let videoTitle = '';
   let videoTags = '';
   let videoFile;
-  let climbGrade
+  let climbGrade;
   let selectedClimbType = 'board';
 
   function clearError() {
     errorMessage = '';
   }  
-  // Close dropdown when clicking outside (optional helper, or just use simple toggle)
+
   function toggleProfileMenu() {
     showProfileMenu = !showProfileMenu;
   }
 
-  // Navigation Logic
   function navigateTo(view) {
     activeView = view;
-    showProfileMenu = false; // Close menu after selection
-    loadVideos(); // Refetch data based on new view
+    showProfileMenu = false; 
+    loadVideos(); 
   }
 
-  // Update loadVideos to respect activeView
-  async function loadVideos() {
-    loading = true;
-    clearError();
+  // --- POLLING LOGIC ---
+  let pollingInterval;
+
+function startPolling() {
+    if (pollingInterval) return; 
+    
+    pollingInterval = setInterval(async () => {
+      const needsPolling = allVideosData.some(v => v.status === 'processing');
+      
+      if (needsPolling) {
+        // Pass TRUE here so the loading spinner doesn't trigger
+        await loadVideos(true); 
+      } else {
+        stopPolling();
+      }
+    }, 5000); 
+  }
+
+  function stopPolling() {
+    if (pollingInterval) {
+      clearInterval(pollingInterval);
+      pollingInterval = null;
+    }
+  }
+
+// Change the signature to accept a parameter, default to false
+  async function loadVideos(isBackground = false) {
+    
+    // Only show the big loading spinner if this is NOT a background update
+    if (!isBackground) {
+      loading = true;
+    }
+
     try {
       let url = '/api/videos';
-      
-      // If View is 'profile', filter by the logged-in user ID
       if (activeView === 'profile' && data.user) {
         url += `?user_id=${data.user.user_id}`;
       }
       
-      allVideosData = await fetchData(url);
+      // Fetch the new data
+      const newData = await fetchData(url);
+      
+      // Update the variable. Svelte will smartly update only changed DOM elements.
+      allVideosData = newData; 
+      
+      // Check for processing videos
+      if (allVideosData.some(v => v.status === 'processing')) {
+        startPolling();
+      }
     } catch (e) {
       console.error(e);
     } finally {
@@ -84,6 +115,8 @@
     }
   }
 
+
+  onDestroy(() => stopPolling());
 
   async function loadFilters() {
     try {
@@ -93,23 +126,14 @@
     }
   }
 
-  function filterVideos() {
-    if (activeFilter === 'all') return allVideosData;
-    console.log("all vid data", allVideosData);
-    return allVideosData.filter((v) => v.tags?.includes(activeFilter));
-  }
-
   function openModal(video) {
-    selectedVideo = video ; // store the whole object
+    selectedVideo = video;
     modalVideoUrl = video.videoUrl;
     modalVideoTitle = video.title;
-    
     editTitle = video.title;
-    editTags = video.tags?.join(', ') || '' ;
-    
+    editTags = video.tags?.join(', ') || '';
     showModal = true;
     isEditing = false;
-
   }
 
   function closeModal() {
@@ -117,7 +141,7 @@
     modalVideoUrl = '';
   }
 
-async function handleUpload(event) {
+  async function handleUpload(event) {
     event.preventDefault();
     if (!videoTitle || !videoFile) {
       uploadMessage = 'Title and video file are required.';
@@ -129,21 +153,17 @@ async function handleUpload(event) {
     formData.append('tags', videoTags);
     formData.append('videoFile', videoFile[0]);   
     formData.append('user_id', data.user.user_id);
-    
-    // --- NEW FIELDS FIXED HERE ---
     formData.append('climbed_date', todayDate);
     formData.append('grade', climbGrade || '0'); 
     
-    // Get values from radio/selects manually if not bound
     const formElement = event.target;
     formData.append('climb_type', formElement.climb_type.value);
 
     if (formElement.board_type) {
         formData.append('board_type', formElement.board_type.value);
     } else {
-        formData.append('board_type', ''); // Or 'N/A'
+        formData.append('board_type', ''); 
     }
-    // -----------------------------
 
     uploading = true;
     uploadMessage = '';
@@ -174,21 +194,40 @@ async function handleUpload(event) {
       });
       toast.text = "Video updated!";
       showModal = false;
-      await loadVideos(); // Refresh list
+      await loadVideos(); 
     } catch (e) {
       toast.text = "Update failed";
     }
   }
 
+  // DELETE VIDEO 
   async function handleDelete() {
-    if (!confirm("Are you sure you want to delete this video?")) return;
+    if (!confirm("Are you sure you want to delete this video? This cannot be undone.")) return;
+    
     try {
-      await fetchData(`/api/videos/${selectedVideo.id}`, { method: 'DELETE' });
-      toast.text = "Video deleted";
+      // Show loader while communicating with Azure/Database
+      loader.show = true;
+
+      // We send the video ID to delete the DB record, 
+      // and often the videoUrl so the backend knows which blob to delete.
+      await fetchData(`/api/videos/${selectedVideo.id}`, { 
+        method: 'DELETE',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          videoUrl: selectedVideo.videoUrl, // Needed to identify the blob in Azure
+          thumbnailUrl: selectedVideo.thumbnail // Clean up the thumbnail too!
+        })
+      });
+
+      toast.text = "Video and file permanently deleted";
       showModal = false;
-      await loadVideos();
+      await loadVideos(true); // Silent refresh
     } catch (e) {
-      toast.text = "Delete failed";
+      console.error(e);
+      toast.text = "Delete failed. Please try again.";
+      toast.color = 'red';
+    } finally {
+      loader.show = false;
     }
   }
 
@@ -295,36 +334,13 @@ async function handleUpload(event) {
               <p class="block font-medium">Type of Climb: </p>
               <div class="space-x-4 mt-1">
                 <label>
-                  <input 
-                    bind:group={selectedClimbType} 
-                    value="board" 
-                    type="radio" 
-                    name="climb_type" 
-                    class="mr-1"
-                  />
-                  Board
+                  <input bind:group={selectedClimbType} value="board" type="radio" name="climb_type" class="mr-1"/> Board
                 </label>
-                
                 <label>
-                  <input 
-                    bind:group={selectedClimbType} 
-                    value="gym" 
-                    type="radio" 
-                    name="climb_type" 
-                    class="mr-1"
-                  />
-                  Gym
+                  <input bind:group={selectedClimbType} value="gym" type="radio" name="climb_type" class="mr-1"/> Gym
                 </label>
-                
                 <label>
-                  <input 
-                    bind:group={selectedClimbType} 
-                    value="outdoor" 
-                    type="radio" 
-                    name="climb_type" 
-                    class="mr-1"
-                  />
-                  Outdoor
+                  <input bind:group={selectedClimbType} value="outdoor" type="radio" name="climb_type" class="mr-1"/> Outdoor
                 </label>
               </div>
             </div>
@@ -351,20 +367,13 @@ async function handleUpload(event) {
               <label class="block font-medium">Video File:</label>
               <input type="file" bind:files={videoFile} accept="video/*" required class="block w-full text-sm text-gray-500 file:mr-4 file:py-2 file:px-4 file:rounded-full file:border-0 file:text-sm file:font-semibold file:bg-blue-50 file:text-blue-700 hover:file:bg-blue-100"/>
             </div>
+            
             <div class="flex gap-4 mt-6">
-              <button 
-                type="submit" 
-                disabled={uploading} 
-                class="flex-1 bg-green-600 hover:bg-green-700 text-white px-6 py-2 rounded font-medium transition disabled:opacity-50 disabled:cursor-not-allowed"
-              >
+              <button type="submit" disabled={uploading} class="flex-1 bg-green-600 hover:bg-green-700 text-white px-6 py-2 rounded font-medium transition disabled:opacity-50 disabled:cursor-not-allowed">
                 {uploading ? 'Uploading...' : 'Upload Video'}
               </button>
 
-              <button 
-                type="button" 
-                on:click={() => showUpload = false} 
-                class="bg-gray-200 hover:bg-gray-300 text-gray-700 px-6 py-2 rounded font-medium transition"
-              >
+              <button type="button" on:click={() => showUpload = false} class="bg-gray-200 hover:bg-gray-300 text-gray-700 px-6 py-2 rounded font-medium transition">
                 Cancel
               </button>
             </div>          
@@ -401,7 +410,8 @@ async function handleUpload(event) {
           <div class="text-center py-10"><p class="text-blue-500 font-semibold text-xl">Loading videos...</p></div>
         {:else if errorMessage}
           <p class="text-center text-red-600 font-semibold">{errorMessage}</p>
-        {:else if filterVideos().length === 0}
+        
+        {:else if filteredVideos.length === 0}
           <div class="text-center py-10 bg-white rounded shadow">
             <p class="text-gray-500 text-lg">No videos found.</p>
             {#if activeView === 'profile'}
@@ -410,27 +420,48 @@ async function handleUpload(event) {
           </div>
         {:else}
           <div class="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-6">
-            {#each filteredVideos as video}
-              <div class="video-item bg-white rounded-lg shadow-md overflow-hidden cursor-pointer hover:shadow-lg transition transform hover:-translate-y-1" on:click={() => openModal(video)}>
-                <img src={video.thumbnail || 'https://placehold.co/600x400/cccccc/1f2937?text=No+Thumb'} alt={video.title} class="w-full h-48 object-cover" on:error={(e) => (e.target.src = 'https://placehold.co/600x400/fecaca/1f2937?text=Image+Error')} />
+            {#each filteredVideos as video (video.id)}
+              <div 
+                class="video-item bg-white rounded-lg shadow-md overflow-hidden cursor-pointer hover:shadow-lg transition transform hover:-translate-y-1 relative" 
+                on:click={() => video.status === 'processing' ? toast.text = "Video is still processing..." : openModal(video)}
+              >
+                <img 
+                  src={video.thumbnail || 'https://placehold.co/600x400/cccccc/1f2937?text=No+Thumb'} 
+                  alt={video.title} 
+                  class="w-full h-48 object-cover {video.status === 'processing' ? 'filter blur-sm opacity-50' : ''}" 
+                  on:error={(e) => (e.target.src = 'https://placehold.co/600x400/fecaca/1f2937?text=Image+Error')}
+                />
+
+                {#if video.status === 'processing'}
+                  <div class="absolute inset-0 flex flex-col items-center justify-center bg-black bg-opacity-20 text-white">
+                    <div class="animate-spin rounded-full h-8 w-8 border-b-2 border-white mb-2"></div>
+                    <span class="text-xs font-bold uppercase tracking-wider">Processing...</span>
+                  </div>
+                {/if}
+
                 <div class="p-4">
-                  <h3 class="font-semibold text-gray-800 mb-1 truncate">{video.title}</h3>
-                  {#if video.climbed_date}
-                    <p class="text-xs text-gray-400 mb-2">{video.climbed_date}</p>
-                  {/if}
-                  <div class="text-xs text-gray-500 space-x-1 flex flex-wrap gap-1">
+                  <div class="flex justify-between items-start">
+                    <h3 class="font-semibold text-gray-800 mb-1 truncate flex-1">{video.title}</h3>
+                    {#if video.status === 'processing'}
+                      <span class="ml-2 inline-block w-2 h-2 bg-yellow-400 rounded-full animate-pulse"></span>
+                    {/if}
+                  </div>
+                  <p class="text-xs text-gray-400 mb-2">{video.climbed_date || ''}</p>
+                  <div class="flex flex-wrap gap-1">
                     {#each video.tags || [] as tag}
-                      <span class="inline-block bg-gray-100 text-gray-600 rounded-full px-2 py-0.5 capitalize">{tag}</span>
+                      <span class="inline-block bg-gray-100 text-gray-600 text-xs px-2 py-0.5 rounded-full">{tag}</span>
                     {/each}
                   </div>
                 </div>
-              </div>
+              </div>            
             {/each}
           </div>
         {/if}
-      {/if} {/if} </div>
+      {/if} 
+    {/if} 
+  </div>
 
-{#if showModal}
+  {#if showModal}
     <div class="fixed inset-0 bg-black bg-opacity-70 flex justify-center items-center z-50 p-4">
       <div class="bg-white p-6 rounded-lg relative max-w-2xl w-full max-h-[90vh] overflow-y-auto shadow-xl">
         <button on:click={closeModal} class="absolute top-2 right-2 text-gray-400 hover:text-red-500 text-2xl transition">×</button>
@@ -438,23 +469,28 @@ async function handleUpload(event) {
         {#if !isEditing}
           <h3 class="text-2xl font-bold mb-2 text-gray-800">{modalVideoTitle}</h3>
           
-          <video src={modalVideoUrl} controls class="w-full rounded-lg mb-4 bg-black max-h-[60vh] shadow-sm"></video>
+          {#if selectedVideo.status === 'processing'}
+            <div class="w-full h-64 bg-gray-100 rounded-lg flex flex-col items-center justify-center text-gray-500 mb-4 border-2 border-dashed border-gray-300">
+               <div class="animate-spin rounded-full h-10 w-10 border-b-2 border-blue-500 mb-3"></div>
+               <p class="font-semibold">Video is processing...</p>
+               <p class="text-sm">Please check back in a moment.</p>
+            </div>
+          {:else}
+            <video 
+              src={modalVideoUrl} 
+              controls
+              preload="metadata"
+              class="w-full rounded-lg mb-4 bg-black max-h-[60vh] shadow-sm">
+            </video>
+          {/if}
           
           <div class="mb-6 space-y-3 border-b pb-4">
-            
             <div class="flex items-center space-x-6 text-sm text-gray-600">
               {#if selectedVideo.climbed_date}
-                <div class="flex items-center">
-                  <span class="font-semibold mr-2">📅 Date:</span>
-                  {selectedVideo.climbed_date}
-                </div>
+                <div class="flex items-center"><span class="font-semibold mr-2">📅 Date:</span>{selectedVideo.climbed_date}</div>
               {/if}
-              
-              {#if selectedVideo.grade} # assuming you saved grade in metadata
-                 <div class="flex items-center">
-                  <span class="font-semibold mr-2">🧗 Grade:</span>
-                  <span class="font-bold text-blue-600">V{selectedVideo.grade}</span>
-                </div>
+              {#if selectedVideo.grade} 
+                 <div class="flex items-center"><span class="font-semibold mr-2">🧗 Grade:</span><span class="font-bold text-blue-600">V{selectedVideo.grade}</span></div>
               {/if}
             </div>
 
@@ -462,28 +498,20 @@ async function handleUpload(event) {
               <div class="flex flex-wrap gap-2 items-center">
                 <span class="text-sm font-semibold text-gray-600">Tags:</span>
                 {#each selectedVideo.tags as tag}
-                  <span class="bg-gray-100 text-gray-700 text-xs px-3 py-1 rounded-full border border-gray-200">
-                    #{tag}
-                  </span>
+                  <span class="bg-gray-100 text-gray-700 text-xs px-3 py-1 rounded-full border border-gray-200">#{tag}</span>
                 {/each}
               </div>
             {/if}
             
             {#if selectedVideo.board_type}
-                <div class="text-sm text-gray-600">
-                    <span class="font-semibold">Board:</span> {selectedVideo.board_type}
-                </div>
+                <div class="text-sm text-gray-600"><span class="font-semibold">Board:</span> {selectedVideo.board_type}</div>
              {/if}
           </div>
           
           {#if data.user && selectedVideo && String(data.user.user_id) === String(selectedVideo.user_id)}
             <div class="flex space-x-3 justify-end">
-              <button on:click={() => isEditing = true} class="bg-gray-100 hover:bg-gray-200 text-gray-700 px-4 py-2 rounded-lg transition font-medium text-sm">
-                ✏️ Edit Details
-              </button>
-              <button on:click={handleDelete} class="bg-red-50 hover:bg-red-100 text-red-600 px-4 py-2 rounded-lg transition font-medium text-sm">
-                🗑️ Delete
-              </button>
+              <button on:click={() => isEditing = true} class="bg-gray-100 hover:bg-gray-200 text-gray-700 px-4 py-2 rounded-lg transition font-medium text-sm">✏️ Edit Details</button>
+              <button on:click={handleDelete} class="bg-red-50 hover:bg-red-100 text-red-600 px-4 py-2 rounded-lg transition font-medium text-sm">🗑️ Delete</button>
             </div>
           {/if}
 
