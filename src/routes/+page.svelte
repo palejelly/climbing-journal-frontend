@@ -62,7 +62,7 @@
   // --- POLLING LOGIC ---
   let pollingInterval;
 
-function startPolling() {
+  function startPolling() {
     if (pollingInterval) return; 
     
     pollingInterval = setInterval(async () => {
@@ -128,7 +128,8 @@ function startPolling() {
 
   function openModal(video) {
     selectedVideo = video;
-    modalVideoUrl = video.videoUrl;
+    // Use a fallback if videoUrl is null
+    modalVideoUrl = video.videoUrl || ''; 
     modalVideoTitle = video.title;
     editTitle = video.title;
     editTags = video.tags?.join(', ') || '';
@@ -154,7 +155,7 @@ function startPolling() {
     formData.append('videoFile', videoFile[0]);   
     formData.append('user_id', data.user.user_id);
     formData.append('climbed_date', todayDate);
-    formData.append('grade', climbGrade || '0'); 
+    formData.append('grade', climbGrade); 
     
     const formElement = event.target;
     formData.append('climb_type', formElement.climb_type.value);
@@ -423,8 +424,7 @@ function startPolling() {
             {#each filteredVideos as video (video.id)}
               <div 
                 class="video-item bg-white rounded-lg shadow-md overflow-hidden cursor-pointer hover:shadow-lg transition transform hover:-translate-y-1 relative" 
-                on:click={() => video.status === 'processing' ? toast.text = "Video is still processing..." : openModal(video)}
-              >
+                on:click={() => openModal(video)}>
                 <img 
                   src={video.thumbnail || 'https://placehold.co/600x400/cccccc/1f2937?text=No+Thumb'} 
                   alt={video.title} 
@@ -436,6 +436,12 @@ function startPolling() {
                   <div class="absolute inset-0 flex flex-col items-center justify-center bg-black bg-opacity-20 text-white">
                     <div class="animate-spin rounded-full h-8 w-8 border-b-2 border-white mb-2"></div>
                     <span class="text-xs font-bold uppercase tracking-wider">Processing...</span>
+                  </div>
+                {/if}
+                {#if video.status === 'failed'}
+                  <div class="absolute inset-0 flex flex-col items-center justify-center bg-red-500 bg-opacity-80 text-white p-2 text-center">
+                    <span class="text-xs font-bold uppercase">Processing Failed</span>
+                    <p class="text-[10px]">Please delete and try again.</p>
                   </div>
                 {/if}
 
@@ -489,6 +495,7 @@ function startPolling() {
               {#if selectedVideo.climbed_date}
                 <div class="flex items-center"><span class="font-semibold mr-2">📅 Date:</span>{selectedVideo.climbed_date}</div>
               {/if}
+              {console.log(selectedVideo)}
               {#if selectedVideo.grade} 
                  <div class="flex items-center"><span class="font-semibold mr-2">🧗 Grade:</span><span class="font-bold text-blue-600">V{selectedVideo.grade}</span></div>
               {/if}
@@ -516,6 +523,7 @@ function startPolling() {
           {/if}
 
         {:else}
+        <!-- IF EDITING -->
           <h3 class="text-xl font-bold mb-4">Edit Video</h3>
           <div class="space-y-4">
             <div>
