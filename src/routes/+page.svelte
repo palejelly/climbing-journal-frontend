@@ -155,7 +155,8 @@
     formData.append('videoFile', videoFile[0]);   
     formData.append('user_id', data.user.user_id);
     formData.append('climbed_date', todayDate);
-    formData.append('grade', climbGrade); 
+    formData.append('grade', climbGrade);
+    formData.append('user_name', data.user.user_name);
     
     const formElement = event.target;
     formData.append('climb_type', formElement.climb_type.value);
@@ -252,9 +253,9 @@
       <div class="relative">
         {#if data.user}
           <button on:click={toggleProfileMenu} class="flex items-center space-x-2 focus:outline-none">
-            <span class="text-sm font-medium text-gray-700 hidden sm:block">{data.user.username}</span>
+            <span class="text-sm font-medium text-gray-700 hidden sm:block">{data.user.user_name}</span>
             <div class="w-10 h-10 rounded-full bg-blue-500 text-white flex items-center justify-center font-bold text-lg border-2 border-white shadow-sm hover:bg-blue-600 transition">
-              {data.user.username ? data.user.username[0].toUpperCase() : 'U'}            
+              {data.user.user_name ? data.user.user_name[0].toUpperCase() : 'U'}            
             </div>
           </button>
 
@@ -453,6 +454,9 @@
                       <span class="ml-2 inline-block w-2 h-2 bg-yellow-400 rounded-full animate-pulse"></span>
                     {/if}
                   </div>
+                  <p class="text-xs font-medium text-blue-600 mb-1">
+                    👤 {video.user_name || ''}
+                  </p>
                   <p class="text-xs text-gray-400 mb-2">{video.climbed_date || ''}</p>
                   <div class="flex flex-wrap gap-1">
                     {#each video.tags || [] as tag}
@@ -496,10 +500,12 @@
               {#if selectedVideo.climbed_date}
                 <div class="flex items-center"><span class="font-semibold mr-2">📅 Date:</span>{selectedVideo.climbed_date}</div>
               {/if}
-              {console.log(selectedVideo)}
+
               {#if selectedVideo.grade} 
                  <div class="flex items-center"><span class="font-semibold mr-2">🧗 Grade:</span><span class="font-bold text-blue-600">V{selectedVideo.grade}</span></div>
               {/if}
+
+
             </div>
 
             {#if selectedVideo.tags && selectedVideo.tags.length > 0}

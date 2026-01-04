@@ -26,7 +26,6 @@
         loader.show = true;
 
         return async ({result})=>{
-          console.log(result);
           //do something with result or after submission
           if(result.type === 'success' && result.status === 200){
             loader.show = false;
