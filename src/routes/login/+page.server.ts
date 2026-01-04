@@ -1,6 +1,5 @@
 import type { ISession, IUser } from "$lib/interfaces";
 import {fail, type Action, type Actions} from "@sveltejs/kit";
-import fetchData from "$lib/db_blobstorage";
 import PostgreSQL from "$lib/db_postgresql";
 
 const login: Action = async ({request, cookies}) => {

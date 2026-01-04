@@ -2,7 +2,7 @@
   import { goto } from '$app/navigation';
   import { onMount, onDestroy } from 'svelte';
   import { enhance } from '$app/forms';
-  import fetchData from '$lib/db_blobstorage';
+  import fetchData from '$lib/db_backendFetch.js';
   import { toast } from '$lib/store/toast.svelte';
   import { loader } from '$lib/store/loader.svelte';
 
@@ -129,7 +129,7 @@
   function openModal(video) {
     selectedVideo = video;
     // Use a fallback if videoUrl is null
-    modalVideoUrl = video.videoUrl || ''; 
+    modalVideoUrl = video.video_url || ''; 
     modalVideoTitle = video.title;
     editTitle = video.title;
     editTags = video.tags?.join(', ') || '';
@@ -438,6 +438,7 @@
                     <span class="text-xs font-bold uppercase tracking-wider">Processing...</span>
                   </div>
                 {/if}
+                
                 {#if video.status === 'failed'}
                   <div class="absolute inset-0 flex flex-col items-center justify-center bg-red-500 bg-opacity-80 text-white p-2 text-center">
                     <span class="text-xs font-bold uppercase">Processing Failed</span>
