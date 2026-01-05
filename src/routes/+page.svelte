@@ -26,9 +26,12 @@
 
   let isEditing = false;
   let editTitle = '';
-  let editTags ='';
-  let selectedVideo = null; 
-
+  let editTags = '';
+  let editGrade = 0;       // New
+  let editSend = false;    // New
+  let editClimbType = '';  // New
+  let editBoardType = '';  // New
+  let selectedVideo = null;
   let searchQuery = ''; 
 
   // REACTIVE FILTER: Handles both Tags AND Search Title
@@ -44,6 +47,7 @@
   let videoFile;
   let climbGrade;
   let selectedClimbType = 'board';
+  let isSend = false; // <--- Add this line here
 
   function clearError() {
     errorMessage = '';
@@ -131,8 +135,14 @@
     // Use a fallback if videoUrl is null
     modalVideoUrl = video.video_url || ''; 
     modalVideoTitle = video.title;
+    
     editTitle = video.title;
     editTags = video.tags?.join(', ') || '';
+    editGrade = video.grade || 0;
+    editSend = video.send || false;
+    editClimbType = video.climb_type || 'board';
+    editBoardType = video.board_type || '';  
+    
     showModal = true;
     isEditing = false;
   }
@@ -156,6 +166,7 @@
     formData.append('user_id', data.user.user_id);
     formData.append('climbed_date', todayDate);
     formData.append('grade', climbGrade);
+    formData.append('send', isSend); 
     formData.append('user_name', data.user.user_name);
     
     const formElement = event.target;
@@ -187,18 +198,27 @@
     try {
       const updatedData = {
         title: editTitle,
-        tags: editTags.split(',').map(t => t.trim())
+        tags: editTags.split(',').map(t => t.trim()).filter(t => t !== ''),
+        grade: parseInt(editGrade),
+        send: editSend,
+        climb_type: editClimbType,
+        board_type: editClimbType === 'board' ? editBoardType : ''
       };
+
       await fetchData(`/api/videos/${selectedVideo.id}`, {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(updatedData)
       });
-      toast.text = "Video updated!";
+
+      toast.text = "Climb updated successfully!";
       showModal = false;
-      await loadVideos(); 
+      await loadVideos(true); // Silent refresh to show changes immediately
+      await loadFilters();    // Refresh tag list in case tags changed
     } catch (e) {
+      console.error(e);
       toast.text = "Update failed";
+      toast.color = "red";
     }
   }
 
@@ -361,6 +381,13 @@
               <label for="grade" class="block font-medium">Grade: V{climbGrade || 0}</label>
               <input type="range" bind:value={climbGrade} id="grade" name="grade" min="0" max="12" class="w-full" />
             </div>
+
+            <div class="flex items-center gap-2 py-2">
+              <input type="checkbox" id="send" bind:checked={isSend} class="w-5 h-5 accent-green-600" />
+              <label for="send" class="font-bold text-gray-700 cursor-pointer">
+                Was this a Send? 🏆
+              </label>
+            </div>
             <div>
               <label class="block font-medium">Tags (comma-separated):</label>
               <input bind:value={videoTags} type="text" class="border p-2 w-full rounded" />
@@ -432,6 +459,11 @@
                   class="w-full h-48 object-cover {video.status === 'processing' ? 'filter blur-sm opacity-50' : ''}" 
                   on:error={(e) => (e.target.src = 'https://placehold.co/600x400/fecaca/1f2937?text=Image+Error')}
                 />
+                {#if video.send}
+                  <span class="ml-2 bg-green-100 text-green-700 text-[10px] font-bold px-2 py-0.5 rounded border border-green-200 uppercase">Send</span>
+                {:else}
+                  <span class="ml-2 bg-gray-100 text-gray-500 text-[10px] font-bold px-2 py-0.5 rounded border border-gray-200 uppercase">Project</span>
+                {/if}
 
                 {#if video.status === 'processing'}
                   <div class="absolute inset-0 flex flex-col items-center justify-center bg-black bg-opacity-20 text-white">
@@ -531,21 +563,53 @@
 
         {:else}
         <!-- IF EDITING -->
-          <h3 class="text-xl font-bold mb-4">Edit Video</h3>
-          <div class="space-y-4">
-            <div>
-              <label class="block text-sm font-medium text-gray-700 mb-1">Title</label>
-              <input bind:value={editTitle} class="w-full border border-gray-300 p-2 rounded focus:ring-2 focus:ring-blue-500 outline-none" />
-            </div>
-            <div>
-              <label class="block text-sm font-medium text-gray-700 mb-1">Tags (comma separated)</label>
-              <input bind:value={editTags} class="w-full border border-gray-300 p-2 rounded focus:ring-2 focus:ring-blue-500 outline-none" />
-            </div>
-            <div class="flex space-x-2 pt-4 justify-end">
-              <button on:click={() => isEditing = false} class="bg-gray-200 px-4 py-2 rounded hover:bg-gray-300 transition">Cancel</button>
-              <button on:click={handleUpdate} class="bg-blue-600 text-white px-4 py-2 rounded hover:bg-blue-700 transition shadow-sm">Save Changes</button>
-            </div>
+        <h3 class="text-xl font-bold mb-4">Edit Climb Details</h3>
+        <div class="space-y-4">
+          <div>
+            <label class="block text-sm font-medium text-gray-700 mb-1">Title</label>
+            <input bind:value={editTitle} class="w-full border border-gray-300 p-2 rounded focus:ring-2 focus:ring-blue-500 outline-none" />
           </div>
+
+          <div class="flex items-center gap-2 p-2 bg-gray-50 rounded border">
+            <input type="checkbox" id="edit-send" bind:checked={editSend} class="w-5 h-5 accent-green-600" />
+            <label for="edit-send" class="font-bold text-gray-700 cursor-pointer">Mark as Send 🏆</label>
+          </div>
+
+          <div>
+            <label class="block text-sm font-medium text-gray-700">Grade: V{editGrade}</label>
+            <input type="range" bind:value={editGrade} min="0" max="12" class="w-full h-2 bg-gray-200 rounded-lg appearance-none cursor-pointer accent-blue-600" />
+          </div>
+
+          <div>
+            <label class="block text-sm font-medium text-gray-700 mb-1">Climb Type</label>
+            <select bind:value={editClimbType} class="w-full border p-2 rounded">
+              <option value="board">Board</option>
+              <option value="gym">Gym</option>
+              <option value="outdoor">Outdoor</option>
+            </select>
+          </div>
+
+          {#if editClimbType === 'board'}
+            <div>
+              <label class="block text-sm font-medium text-gray-700 mb-1">Board Type</label>
+              <select bind:value={editBoardType} class="w-full border p-2 rounded">
+                <option value="Tension Board 2">Tension Board 2</option>
+                <option value="Kilter Board">Kilter Board</option>
+                <option value="Moon Board">Moon Board</option>
+              </select>
+            </div>
+          {/if}
+
+          <div>
+            <label class="block text-sm font-medium text-gray-700 mb-1">Tags (comma separated)</label>
+            <input bind:value={editTags} class="w-full border border-gray-300 p-2 rounded focus:ring-2 focus:ring-blue-500 outline-none" />
+          </div>
+
+          <div class="flex space-x-2 pt-4 justify-end">
+            <button on:click={() => isEditing = false} class="bg-gray-200 px-4 py-2 rounded hover:bg-gray-300 transition">Cancel</button>
+            <button on:click={handleUpdate} class="bg-blue-600 text-white px-4 py-2 rounded hover:bg-blue-700 transition shadow-sm">Save Changes</button>
+          </div>
+        </div>
         {/if}
       </div>
     </div>
