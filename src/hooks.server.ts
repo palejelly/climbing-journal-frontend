@@ -29,7 +29,7 @@ export async function handle({event, resolve}){
 
     // send user back to login page if not logged in. 
     // not sure we need this feature now. 
-    if(event.url.pathname !== '/login' && !event.locals.user){
+    if(event.url.pathname !== '/login' && event.url.pathname !== '/join' && !event.locals.user ){
         throw redirect(303, '/login');
     }
 
